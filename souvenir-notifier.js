@@ -26,7 +26,7 @@ function sendNotification(key, title, message)
             let json = JSON.parse(body);
             if(json.status !== "OK")
             {
-                log("Error: " + body, {
+                log("Error sending notification: " + body, {
                     bright: true,
                     fg_color: "\x1b[37m",
                     bg_color: "\x1b[41m"
@@ -35,7 +35,7 @@ function sendNotification(key, title, message)
         }
         catch(e)
         {
-            log("Error" + body, {
+            log("Error sending notification: " + body, {
                 bright: true,
                 fg_color: "\x1b[37m",
                 bg_color: "\x1b[41m"
