@@ -130,7 +130,8 @@ function run()
                                     "You got a package from " + match[3] + " worth " + price
                                 );
                                 saveData(JSON.stringify(data));
-                                log(username + " just got a package from " + match[3] + " worth " + price.replace("€", " euro"), {
+                                log(username + " just got a package from " + match[3] + " worth " +
+                                    price.replace("€", " euros").replace("$", "dollars"), {
                                     fg_color: "\x1b[32m",
                                     bright: true
                                 });
@@ -139,7 +140,7 @@ function run()
                         else
                         {
                             saveData(JSON.stringify(data));
-                            log(username + " already had a  " + name + ", not notifying", {
+                            log(username + " already had a " + name + ", not notifying", {
                                 fg_color: "\x1b[33m",
                                 bright: true
                             });
@@ -196,9 +197,11 @@ function ensureDirectoryExistence(filePath)
     fs.mkdirSync(dirname);
 }
 
-function start(delay)
+function startupText()
 {
     const users = readUsers();
+    const data = readUsers();
+
     let usersText = "[ ";
     for(let i = 0; i < users.length; i++)
     {
@@ -219,6 +222,24 @@ function start(delay)
             fg_color: "\x1b[37m",
             bg_color: "\x1b[46m"
         });
+    for(let i = 0; i < users.length; i++)
+    {
+        if(data[users[i].steam_id] !== undefined)
+        {
+            log(users[i].username + " already has " + data[users[i].steam_id].length + " souvenir packages",
+                {
+                    bright: true,
+                    fg_color: "\x1b[37m",
+                    bg_color: "\x1b[46m"
+                });
+
+        }
+    }
+}
+
+function start(delay)
+{
+    startupText();
     run();
     setInterval(run, delay * 60 * 1000);
 }

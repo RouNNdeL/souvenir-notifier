@@ -1,6 +1,6 @@
 {
   "name": "souvenir-notifier",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "dependencies": {
     "dateformat": "^2.0.0",
     "request": "latest",
