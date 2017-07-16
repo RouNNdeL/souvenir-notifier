@@ -117,9 +117,9 @@ function run()
                     {
                         data[userId] = [];
                     }
-                    if(data[userId].indexOf(name) === -1)
+                    if(data[userId].indexOf(marketName) === -1)
                     {
-                        data[userId].push(name);
+                        data[userId].push(marketName);
                         if(!newUser)
                         {
                             getItemPrice(marketName, function(price)
