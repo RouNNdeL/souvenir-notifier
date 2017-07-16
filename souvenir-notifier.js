@@ -18,19 +18,28 @@ const REGEX_SOUVENIR = /(.*) (\d{4}) (.*) Souvenir Package/;
 function sendNotification(key, title, message)
 {
     request.get({
-        url: NOTIFY_API_URL+"/"+key+"/"+title+"/"+encodeURI(message)
+        url: NOTIFY_API_URL + "/" + key + "/" + title + "/" + encodeURI(message)
     }, (err, response, body) =>
     {
-        try{
-            let json = JSON.stringify(body);
+        try
+        {
+            let json = JSON.parse(body);
             if(json.status !== "OK")
             {
-                log("Error: "+body)
+                log("Error: " + body, {
+                    bright: true,
+                    fg_color: "\x1b[37m",
+                    bg_color: "\x1b[41m"
+                })
             }
         }
         catch(e)
         {
-            log("Error"+body)
+            log("Error" + body, {
+                bright: true,
+                fg_color: "\x1b[37m",
+                bg_color: "\x1b[41m"
+            })
         }
     });
 }
@@ -71,7 +80,7 @@ function getItemPrice(name, callback)
 
 function run()
 {
-    log("Refreshing...");
+    log("Refreshing...", {bright: true});
 
     const data = readData();
     const users = readUsers();
@@ -104,7 +113,10 @@ function run()
                                 "You got a Souvenir Package from " + match[3] + " worth " + price
                             );
                             saveData(JSON.stringify(data));
-                            log(username+" just got a "+name+" worth "+price);
+                            log(username + " just got a package from " + match[3] + " worth " + price, {
+                                fg_color: "\x1b[32m",
+                                bright: true
+                            });
                         });
                     }
                 }
@@ -161,13 +173,25 @@ function ensureDirectoryExistence(filePath)
 function start(delay)
 {
     run();
-    setInterval(run, delay*60*1000);
+    setInterval(run, delay * 60 * 1000);
 }
 
-function log(text)
+function log(text, options)
 {
+    let brightness;
+    let fg_color = "";
+    let bg_color = "";
+    if(options && options.bright)
+        brightness = "\x1b[1m";
+    else
+        brightness = "\x1b[2m";
+    if(options && options.fg_color)
+        fg_color = options.fg_color;
+    if(options && options.bg_color)
+        bg_color = options.bg_color;
+
     const date = dateFormat(new Date(), "yyyy-mm-dd H:MM:ss");
-    console.log(date+" - "+text);
+    console.log(brightness + bg_color + fg_color + "%s" + "\x1b[0m", date + " - " + text);
 }
 
 if(argv.delay !== undefined)
