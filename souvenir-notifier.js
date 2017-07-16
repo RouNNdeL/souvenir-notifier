@@ -108,17 +108,18 @@ function run()
             let items = response.descriptions;
             let savedItems = data[userId];
             if(savedItems === undefined || savedItems === null)
-                savedItems = [];
-            data[userId] = [];
+                savedItems = {};
+            data[userId] = {};
             for(let i = 0; i < items.length; i++)
             {
                 const name = items[i].name;
                 const marketName = items[i].market_hash_name;
+                const id = parseInt(items[i].classid+items[i].instanceid).toString(16);
                 const match = REGEX_SOUVENIR.exec(name);
                 if(match !== null)
                 {
-                    data[userId].push(marketName);
-                    if(savedItems.indexOf(marketName) === -1)
+                    data[userId][id] = name;
+                    if(!savedItems.hasOwnProperty(id))
                     {
                         if(!newUser)
                         {
@@ -229,7 +230,7 @@ function startupText(delay)
     {
         if(data[users[i].steam_id] !== undefined)
         {
-            let count = data[users[i].steam_id].length;
+            let count = Object.keys(data[users[i].steam_id]).length;
             log(users[i].username + " already has " + count + " Souvenir Package" + (count === 1 ? "s" : ""),
                 {
                     bright: true,

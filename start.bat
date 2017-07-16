@@ -3,4 +3,4 @@
 set delay=5
 echo Delay in minutes (default 5):
 set /p delay=
-node souvenir-notifier
+node souvenir-notifier --delay %delay%
