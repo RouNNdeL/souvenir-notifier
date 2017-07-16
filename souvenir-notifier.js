@@ -4,6 +4,7 @@ const request = require("request");
 const argv = require('yargs').argv;
 const fs = require('fs');
 const path = require('path');
+const dateFormat = require('dateformat');
 
 const NOTIFY_API_URL = "https://api.simplepush.io/send";
 const STEAM_INVENTORY_API_URL = "https://steamcommunity.com/inventory/$user_id$/730/2";
@@ -24,12 +25,12 @@ function sendNotification(key, title, message)
             let json = JSON.stringify(body);
             if(json.status !== "OK")
             {
-                console.log(body)
+                log("Error: "+body)
             }
         }
         catch(e)
         {
-            console.log(body)
+            log("Error"+body)
         }
     });
 }
@@ -70,7 +71,7 @@ function getItemPrice(name, callback)
 
 function run()
 {
-    console.log("Refreshing...");
+    log("Refreshing...");
 
     const data = readData();
     const users = readUsers();
@@ -103,7 +104,7 @@ function run()
                                 "You got a Souvenir Package from " + match[3] + " worth " + price
                             );
                             saveData(JSON.stringify(data));
-                            console.log(username+" just got a "+name+" worth "+price);
+                            log(username+" just got a "+name+" worth "+price);
                         });
                     }
                 }
@@ -161,6 +162,12 @@ function start(delay)
 {
     run();
     setInterval(run, delay*60*1000);
+}
+
+function log(text)
+{
+    const date = dateFormat(new Date(), "yyyy-mm-dd H:MM:ss");
+    console.log(date+" - "+text);
 }
 
 if(argv.delay !== undefined)
