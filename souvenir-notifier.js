@@ -197,10 +197,10 @@ function ensureDirectoryExistence(filePath)
     fs.mkdirSync(dirname);
 }
 
-function startupText()
+function startupText(delay)
 {
     const users = readUsers();
-    const data = readUsers();
+    const data = readData();
 
     let usersText = "[ ";
     for(let i = 0; i < users.length; i++)
@@ -226,7 +226,8 @@ function startupText()
     {
         if(data[users[i].steam_id] !== undefined)
         {
-            log(users[i].username + " already has " + data[users[i].steam_id].length + " souvenir packages",
+            let count = data[users[i].steam_id].length;
+            log(users[i].username + " already has " + count + " Souvenir Package"+(count === 1 ? "s": ""),
                 {
                     bright: true,
                     fg_color: "\x1b[37m",
@@ -239,7 +240,7 @@ function startupText()
 
 function start(delay)
 {
-    startupText();
+    startupText(delay);
     run();
     setInterval(run, delay * 60 * 1000);
 }
@@ -247,8 +248,8 @@ function start(delay)
 function log(text, options)
 {
     let brightness;
-    let fg_color = "";
     let bg_color = "";
+    let fg_color = "";
     if(options && options.bright)
         brightness = "\x1b[1m";
     else
