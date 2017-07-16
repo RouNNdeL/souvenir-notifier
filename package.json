@@ -1,0 +1,8 @@
+{
+  "name": "souvenir-notifier",
+  "version": "0.0.1",
+  "dependencies": {
+    "request": "latest",
+    "yargs": "^8.0.2"
+  }
+}
