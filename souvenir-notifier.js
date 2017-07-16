@@ -110,10 +110,10 @@ function run()
                             sendNotification(
                                 key,
                                 "New item drop for " + username,
-                                "You got a Souvenir Package from " + match[3] + " worth " + price
+                                "You got a package from " + match[3] + " worth " + price
                             );
                             saveData(JSON.stringify(data));
-                            log(username + " just got a package from " + match[3] + " worth " + price, {
+                            log(username + " just got a package from " + match[3] + " worth " + price.replace("€", " euro"), {
                                 fg_color: "\x1b[32m",
                                 bright: true
                             });
@@ -172,6 +172,27 @@ function ensureDirectoryExistence(filePath)
 
 function start(delay)
 {
+    const users = readUsers();
+    let usersText = "[ ";
+    for(let i = 0; i < users.length; i++)
+    {
+        if(i !== 0)
+            usersText += ", ";
+        usersText += users[i].username;
+    }
+    usersText += " ]";
+    log("Starting souvenir-notifier by RouNdeL, refresh time is set to "+delay+" minutes",
+        {
+            bright: true,
+            fg_color: "\x1b[37m",
+            bg_color: "\x1b[46m"
+        });
+    log("Configured users are " + usersText,
+        {
+            bright: true,
+            fg_color: "\x1b[37m",
+            bg_color: "\x1b[46m"
+        });
     run();
     setInterval(run, delay * 60 * 1000);
 }
