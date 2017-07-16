@@ -13,7 +13,7 @@ const STEAM_PRICE_API_URL = "https://steamcommunity.com/market/priceoverview";
 const SAVE_FILE = "files/data.json";
 const CONFIG_FILE = "config.cfg";
 
-const REGEX_SOUVENIR = /(.*) (\d{4}) (.*) Souvenir Package/;
+const REGEX_SOUVENIR = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 
 function sendNotification(key, title, message)
 {
@@ -106,6 +106,10 @@ function run()
         callSteamApi(userId, 5000, function(response)
         {
             let items = response.descriptions;
+            let savedItems = data[userId];
+            if(savedItems === undefined || savedItems === null)
+                savedItems = [];
+            data[userId] = [];
             for(let i = 0; i < items.length; i++)
             {
                 const name = items[i].name;
@@ -113,13 +117,9 @@ function run()
                 const match = REGEX_SOUVENIR.exec(name);
                 if(match !== null)
                 {
-                    if(data[userId] === undefined || data[userId] === null)
+                    data[userId].push(marketName);
+                    if(savedItems.indexOf(marketName) === -1)
                     {
-                        data[userId] = [];
-                    }
-                    if(data[userId].indexOf(marketName) === -1)
-                    {
-                        data[userId].push(marketName);
                         if(!newUser)
                         {
                             getItemPrice(marketName, function(price)
@@ -140,10 +140,13 @@ function run()
                         else
                         {
                             saveData(JSON.stringify(data));
-                            log(username + " already had a " + name + ", not notifying", {
-                                fg_color: "\x1b[33m",
-                                bright: true
-                            });
+                            log(username + " already had a " +
+                                match[1] + " " + match[2] + " " + match[3] + ", not notifying",
+                                {
+                                    fg_color: "\x1b[33m",
+                                    bright: true
+                                }
+                            );
                         }
                     }
                 }
@@ -227,7 +230,7 @@ function startupText(delay)
         if(data[users[i].steam_id] !== undefined)
         {
             let count = data[users[i].steam_id].length;
-            log(users[i].username + " already has " + count + " Souvenir Package"+(count === 1 ? "s": ""),
+            log(users[i].username + " already has " + count + " Souvenir Package" + (count === 1 ? "s" : ""),
                 {
                     bright: true,
                     fg_color: "\x1b[37m",
