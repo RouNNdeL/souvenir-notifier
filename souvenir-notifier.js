@@ -30,7 +30,7 @@ function sendNotification(key, title, message)
                     bright: true,
                     fg_color: "\x1b[37m",
                     bg_color: "\x1b[41m"
-                })
+                });
             }
         }
         catch(e)
@@ -39,7 +39,7 @@ function sendNotification(key, title, message)
                 bright: true,
                 fg_color: "\x1b[37m",
                 bg_color: "\x1b[41m"
-            })
+            });
         }
     });
 }
@@ -54,7 +54,18 @@ function callSteamApi(userId, count, callback)
         }
     }, (err, response, body) =>
     {
-        callback(JSON.parse(body))
+        try
+        {
+            callback(JSON.parse(body))
+        }
+        catch(e)
+        {
+            log("Error: " + body, {
+                bright: true,
+                fg_color: "\x1b[37m",
+                bg_color: "\x1b[41m"
+            })
+        }
     });
 }
 
@@ -90,6 +101,8 @@ function run()
         const userId = users[i]["steam_id"];
         const username = users[i]["username"];
         const key = users[i]["key"];
+        const newUser = data[userId] === undefined;
+
         callSteamApi(userId, 5000, function(response)
         {
             let items = response.descriptions;
@@ -100,24 +113,37 @@ function run()
                 const match = REGEX_SOUVENIR.exec(name);
                 if(match !== null)
                 {
-                    if(data[userId] === undefined)
+                    if(data[userId] === undefined || data[userId] === null)
+                    {
                         data[userId] = [];
+                    }
                     if(data[userId].indexOf(name) === -1)
                     {
                         data[userId].push(name);
-                        getItemPrice(marketName, function(price)
+                        if(!newUser)
                         {
-                            sendNotification(
-                                key,
-                                "New item drop for " + username,
-                                "You got a package from " + match[3] + " worth " + price
-                            );
+                            getItemPrice(marketName, function(price)
+                            {
+                                sendNotification(
+                                    key,
+                                    "New item drop for " + username,
+                                    "You got a package from " + match[3] + " worth " + price
+                                );
+                                saveData(JSON.stringify(data));
+                                log(username + " just got a package from " + match[3] + " worth " + price.replace("€", " euro"), {
+                                    fg_color: "\x1b[32m",
+                                    bright: true
+                                });
+                            });
+                        }
+                        else
+                        {
                             saveData(JSON.stringify(data));
-                            log(username + " just got a package from " + match[3] + " worth " + price.replace("€", " euro"), {
-                                fg_color: "\x1b[32m",
+                            log(username + " already had a  " + name + ", not notifying", {
+                                fg_color: "\x1b[33m",
                                 bright: true
                             });
-                        });
+                        }
                     }
                 }
             }
@@ -181,7 +207,7 @@ function start(delay)
         usersText += users[i].username;
     }
     usersText += " ]";
-    log("Starting souvenir-notifier by RouNdeL, refresh time is set to "+delay+" minutes",
+    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes",
         {
             bright: true,
             fg_color: "\x1b[37m",
