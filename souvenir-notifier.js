@@ -14,13 +14,14 @@ const SAVE_FILE = "files/data.json";
 const CONFIG_FILE = "config.cfg";
 const FIREBASE_FILE = "serviceAccountKey.json";
 
-const REGEX_SOUVENIR = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
+const REGEX_NAME = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
+const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.*?),/;
 
 function sendFirebaseMessage(key, data)
 {
     admin.messaging().sendToDevice(key, {data: data})
         .then(function(response) {
-            console.log("Successfully sent message:", response);
+            //console.log("Successfully sent message:", response);
         })
         .catch(function(error) {
             console.log("Error sending message:", error);
@@ -93,6 +94,7 @@ function run()
         callSteamApi(userId, 5000, function(response)
         {
             let items = response.descriptions;
+            let assets = response.assets;
             let savedItems = data[userId];
             if(savedItems === undefined || savedItems === null)
                 savedItems = {};
@@ -101,29 +103,30 @@ function run()
             {
                 const name = items[i].name;
                 const marketName = items[i].market_hash_name;
-                const id = parseInt(items[i].classid + items[i].instanceid).toString(16);
-                const match = REGEX_SOUVENIR.exec(name);
-                if(match !== null)
+                const assetId = getAssetId(assets, items[i].classid, items[i].instanceid);
+                const nameMatch = REGEX_NAME.exec(name);
+                if(nameMatch !== null)
                 {
-                    data[userId][id] = name;
-                    if(!savedItems.hasOwnProperty(id))
+                    data[userId][assetId] = name;
+                    if(!savedItems.hasOwnProperty(assetId))
                     {
                         if(true || !newUser)
                         {
+                            const matchInfo = getMatchInfo(items[i].descriptions);
                             getItemPrice(marketName, function(price)
                             {
                                 sendFirebaseMessage(key, {
                                     username: username,
                                     price: price,
-                                    team1: "Virtus.Pro",
-                                    team2: "SK Gaming",
-                                    event: match[1],
-                                    year: match[2],
-                                    map: match[3],
-                                    url: "https://steamcommunity.com/id/RouNdeL/inventory#730_2_8903995964"
+                                    team1: matchInfo.team1,
+                                    team2: matchInfo.team2,
+                                    event: nameMatch[1],
+                                    year: nameMatch[2],
+                                    map: nameMatch[3],
+                                    url: "https://steamcommunity.com/profiles/"+userId+"/inventory#730_2_"+assetId
                                 });
                                 saveData(JSON.stringify(data));
-                                log(username + " just got a package from " + match[3] + " worth " +
+                                log(username + " just got a package from " + nameMatch[3] + " worth " +
                                     price.replace("€", " euros").replace("$", "dollars"), {
                                     fg_color: "\x1b[32m",
                                     bright: true
@@ -134,7 +137,7 @@ function run()
                         {
                             saveData(JSON.stringify(data));
                             log(username + " already had a " +
-                                match[1] + " " + match[2] + " " + match[3] + ", not notifying",
+                                nameMatch[1] + " " + nameMatch[2] + " " + nameMatch[3] + ", not notifying",
                                 {
                                     fg_color: "\x1b[33m",
                                     bright: true
@@ -269,6 +272,33 @@ function initializeFirebase()
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://souvenirnotifier.firebaseio.com"
     });
+}
+
+function getAssetId(assets, classid, instanceid)
+{
+    for(let i = 0; i < assets.length; i++)
+    {
+        if(assets[i].instanceid === instanceid && assets[i].classid === classid)
+            return assets[i].assetid;
+    }
+}
+
+function getMatchInfo(descriptors)
+{
+    for(let i = 0; i < descriptors.length; i++)
+    {
+        const match = REGEX_MATCH.exec(descriptors[i].value);
+        if(match !== null)
+        {
+            return {
+                tier: match[1],
+                team1: match[2],
+                team2: match[3]
+            }
+        }
+    }
+
+    return null;
 }
 
 if(argv.delay !== undefined)
