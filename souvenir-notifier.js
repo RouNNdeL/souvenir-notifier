@@ -110,7 +110,7 @@ function run()
                     data[userId][assetId] = name;
                     if(!savedItems.hasOwnProperty(assetId))
                     {
-                        if(true || !newUser)
+                        if(!newUser)
                         {
                             const matchInfo = getMatchInfo(items[i].descriptions);
                             getItemPrice(marketName, function(price)
