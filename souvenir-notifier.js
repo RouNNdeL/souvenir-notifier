@@ -178,9 +178,10 @@ function readUsers()
 
     for(let i = 0; i < lines.length; i++)
     {
-        if(lines[i][0] !== "#" && lines[i].length > 0)
+        let line = lines[i].trim();
+        if(line[0] !== "#" && line.length > 0)
         {
-            const content = lines[i].split(" ");
+            const content = line.split(" ");
             //noinspection EqualityComparisonWithCoercionJS
             if(content.length !== 3 || parseInt(content[1]) != content[1])
             {
