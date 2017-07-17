@@ -178,8 +178,22 @@ function readUsers()
 
     for(let i = 0; i < lines.length; i++)
     {
-        const content = lines[i].split(" ");
-        users.push({steam_id: content[1], key: content[2], username: content[0]});
+        if(lines[i][0] !== "#" && lines[i].length > 0)
+        {
+            const content = lines[i].split(" ");
+            //noinspection EqualityComparisonWithCoercionJS
+            if(content.length !== 3 || parseInt(content[1]) != content[1])
+            {
+                log("Error in config.cfg on line "+(i+1),
+                {
+                    bright: true,
+                        fg_color: "\x1b[37m",
+                    bg_color: "\x1b[41m"
+                });
+                process.exit(1);
+            }
+            users.push({steam_id: content[1], key: content[2], username: content[0]});
+        }
     }
 
     return users;
