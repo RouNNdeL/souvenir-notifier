@@ -1,47 +1,30 @@
-"use strict";
+﻿"use strict";
 
 const request = require("request");
 const argv = require('yargs').argv;
 const fs = require('fs');
 const path = require('path');
 const dateFormat = require('dateformat');
+const admin = require("firebase-admin");
 
-const NOTIFY_API_URL = "https://api.simplepush.io/send";
 const STEAM_INVENTORY_API_URL = "https://steamcommunity.com/inventory/$user_id$/730/2";
 const STEAM_PRICE_API_URL = "https://steamcommunity.com/market/priceoverview";
 
 const SAVE_FILE = "files/data.json";
 const CONFIG_FILE = "config.cfg";
+const FIREBASE_FILE = "serviceAccountKey.json";
 
 const REGEX_SOUVENIR = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 
-function sendNotification(key, title, message)
+function sendFirebaseMessage(key, data)
 {
-    request.get({
-        url: NOTIFY_API_URL + "/" + key + "/" + title + "/" + encodeURI(message)
-    }, (err, response, body) =>
-    {
-        try
-        {
-            let json = JSON.parse(body);
-            if(json.status !== "OK")
-            {
-                log("Error sending notification: " + body, {
-                    bright: true,
-                    fg_color: "\x1b[37m",
-                    bg_color: "\x1b[41m"
-                });
-            }
-        }
-        catch(e)
-        {
-            log("Error sending notification: " + body, {
-                bright: true,
-                fg_color: "\x1b[37m",
-                bg_color: "\x1b[41m"
-            });
-        }
-    });
+    admin.messaging().sendToDevice(key, {data: data})
+        .then(function(response) {
+            console.log("Successfully sent message:", response);
+        })
+        .catch(function(error) {
+            console.log("Error sending message:", error);
+        });
 }
 
 function callSteamApi(userId, count, callback)
@@ -86,6 +69,10 @@ function getItemPrice(name, callback)
         {
             callback(json.lowest_price);
         }
+        else
+        {
+            callback("0");
+        }
     })
 }
 
@@ -114,22 +101,27 @@ function run()
             {
                 const name = items[i].name;
                 const marketName = items[i].market_hash_name;
-                const id = parseInt(items[i].classid+items[i].instanceid).toString(16);
+                const id = parseInt(items[i].classid + items[i].instanceid).toString(16);
                 const match = REGEX_SOUVENIR.exec(name);
                 if(match !== null)
                 {
                     data[userId][id] = name;
                     if(!savedItems.hasOwnProperty(id))
                     {
-                        if(!newUser)
+                        if(true || !newUser)
                         {
                             getItemPrice(marketName, function(price)
                             {
-                                sendNotification(
-                                    key,
-                                    "New item drop for " + username,
-                                    "You got a package from " + match[3] + " worth " + price
-                                );
+                                sendFirebaseMessage(key, {
+                                    username: username,
+                                    price: price,
+                                    team1: "Virtus.Pro",
+                                    team2: "SK Gaming",
+                                    event: match[1],
+                                    year: match[2],
+                                    map: match[3],
+                                    url: "https://steamcommunity.com/id/RouNdeL/inventory#730_2_8903995964"
+                                });
                                 saveData(JSON.stringify(data));
                                 log(username + " just got a package from " + match[3] + " worth " +
                                     price.replace("€", " euros").replace("$", "dollars"), {
@@ -244,12 +236,13 @@ function startupText(delay)
 
 function start(delay)
 {
+    initializeFirebase();
     startupText(delay);
     run();
     setInterval(run, delay * 60 * 1000);
 }
 
-function log(text, options)
+function log(text, options, includeDate = true)
 {
     let brightness;
     let bg_color = "";
@@ -263,8 +256,19 @@ function log(text, options)
     if(options && options.bg_color)
         bg_color = options.bg_color;
 
-    const date = dateFormat(new Date(), "yyyy-mm-dd H:MM:ss");
-    console.log(brightness + bg_color + fg_color + "%s" + "\x1b[0m", date + " - " + text);
+    const date = dateFormat(new Date(), "yyyy-mm-dd HH:MM:ss");
+    console.log(brightness + bg_color + fg_color + "%s" + "\x1b[0m", (includeDate ? date + " - " : "") + text);
+}
+
+function initializeFirebase()
+{
+    //noinspection NpmUsedModulesInstalled
+    const serviceAccount = JSON.parse(fs.readFileSync(FIREBASE_FILE));
+
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: "https://souvenirnotifier.firebaseio.com"
+    });
 }
 
 if(argv.delay !== undefined)

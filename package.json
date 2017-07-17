@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "dependencies": {
     "dateformat": "^2.0.0",
+    "firebase-admin": "^5.0.1",
     "request": "latest",
     "yargs": "^8.0.2"
   }
