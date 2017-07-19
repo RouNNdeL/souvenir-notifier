@@ -11,12 +11,16 @@ const STEAM_INVENTORY_API_URL = "https://steamcommunity.com/inventory/$user_id$/
 const STEAM_PRICE_API_URL = "https://steamcommunity.com/market/priceoverview";
 
 const SAVE_FILE = "files/data.json";
-const CONFIG_FILE = "config.cfg";
 const FIREBASE_FILE = "serviceAccountKey.json";
 
 const REGEX_NAME = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.*?),/;
 
+/**
+ * Sends a FirebaseMessage to a single client
+ * @param key - the registration token that comes from the client FCM SDKs.
+ * @param data - the payload to send
+ */
 function sendFirebaseMessage(key, data)
 {
     admin.messaging().sendToDevice(key, {data: data})
@@ -30,7 +34,17 @@ function sendFirebaseMessage(key, data)
         });
 }
 
-function callSteamApi(userId, count, callback)
+/**
+ * @callback onInventoryFetchedCallback
+ * @param result - an Object return by the Steam API
+ */
+/**
+ * Fetches an inventory of a user given the Steam64ID
+ * @param userId - user id in steam64 format
+ * @param count - maximum count of items to fetch
+ * @param {onInventoryFetchedCallback} callback
+ */
+function fetchInventory(userId, count, callback)
 {
     request({
         url: STEAM_INVENTORY_API_URL.replace("$user_id$", userId),
@@ -55,6 +69,16 @@ function callSteamApi(userId, count, callback)
     });
 }
 
+
+/**
+ * @callback onPriceFetchedCallback
+ * @param {string} - the lowest price of an item in EUR (ex. 1,23€)
+ */
+/**
+ * Asynchronously fetches a price by the market name
+ * @param name - the so called 'market_hash_name' from the Steam API
+ * @param {onPriceFetchedCallback} callback
+ */
 function getItemPrice(name, callback)
 {
     //noinspection SpellCheckingInspection
@@ -79,6 +103,15 @@ function getItemPrice(name, callback)
     })
 }
 
+/**
+ * Main function doing work. It asynchronously calls Steam API
+ * to fetch User's inventories, then processes the response
+ * and sends the appropriate notifications
+ * @param users - users received from the {@link onUsersFetchedCallback()}
+ * @see fetchInventory
+ * @see getItemPrice
+ * @see sendFirebaseMessage
+ */
 function run(users)
 {
     log("Refreshing...", {bright: true});
@@ -94,7 +127,7 @@ function run(users)
         const keys = users[k]["keys"];
         const newUser = data[userId] === undefined;
 
-        callSteamApi(userId, 5000, function(response)
+        fetchInventory(userId, 5000, function(response)
         {
             let items = response.descriptions;
             let assets = response.assets;
@@ -158,6 +191,11 @@ function run(users)
     }
 }
 
+/**
+ * Reads the data about Steam Users' packages from a file in local directory
+ * @returns {{}}
+ * @see SAVE_FILE
+ */
 function readData()
 {
     try
@@ -172,7 +210,11 @@ function readData()
     }
 }
 
-
+/**
+ * Saves data about Steam Users' packages to a file in local directory
+ * @param {string|object} data
+ * @see SAVE_FILE
+ */
 function saveData(data)
 {
     if(typeof data === "string")
@@ -181,35 +223,14 @@ function saveData(data)
         fs.writeFileSync(SAVE_FILE, JSON.stringify(data), "utf-8");
 }
 
-function readUsers()
-{
-    const users = [];
-    const lines = fs.readFileSync(CONFIG_FILE, "utf-8").split("\n");
-
-    for(let i = 0; i < lines.length; i++)
-    {
-        let line = lines[i].trim();
-        if(line[0] !== "#" && line.length > 0)
-        {
-            const content = line.split(" ");
-            //noinspection EqualityComparisonWithCoercionJS
-            if(content.length !== 3 || parseInt(content[1]) != content[1])
-            {
-                log("Error in config.cfg on line " + (i + 1),
-                    {
-                        bright: true,
-                        fg_color: "\x1b[37m",
-                        bg_color: "\x1b[41m"
-                    });
-                process.exit(1);
-            }
-            users.push({steam_id: content[1], key: content[2], username: content[0]});
-        }
-    }
-
-    return users;
-}
-
+/**
+ * @callback onUsersFetchedCallback
+ * @param {{id: {steam_id: number, username: string, keys: [string]}}} users - fetched users
+ */
+/**
+ * Asynchronously fetches users from the Firebase Database
+ * @param {onUsersFetchedCallback} callback
+ */
 function readUsersFromDatabase(callback)
 {
     const db = admin.database();
@@ -244,21 +265,30 @@ function readUsersFromDatabase(callback)
     });
 }
 
+/**
+ * Checks whether a directory exists and and creates it if it doesn't
+ * @param filePath - a path to a file that we want to create in said directory
+ * @returns {void}
+ */
 function ensureDirectoryExistence(filePath)
 {
     const dirname = path.dirname(filePath);
     if(fs.existsSync(dirname))
     {
-        return true;
+        return;
     }
     ensureDirectoryExistence(dirname);
     fs.mkdirSync(dirname);
 }
 
-function startupText(delay)
+/**
+ * Prints the startup text to the console
+ * @param users - required to properly print the text
+ * @param delay - required to properly print the text
+ */
+function startupText(users, delay)
 {
     const users = readUsers();
-    const data = readData();
 
     let usersText = "[ ";
     for(let i = 0; i < users.length; i++)
@@ -299,6 +329,10 @@ function startupText(delay)
     }
 }
 
+/**
+ * Asynchronously calls {@link run run()} after fetching <code>users</code> from the Database
+ * @see readUsersFromDatabase readUsersFromDatabase()
+ */
 function runWithUserFetch()
 {
     readUsersFromDatabase(function(users)
@@ -307,12 +341,22 @@ function runWithUserFetch()
     });
 }
 
+/**
+ * Main function of the script, initializes an interval tha fires every n seconds
+ * @param delay - delay in minutes for the interval
+ * @see run
+ * @see readUsersFromDatabase
+ * @see startupText
+ */
 function start(delay)
 {
     initializeFirebase();
-    startupText(delay);
-    runWithUserFetch();
-    setInterval(runWithUserFetch, delay * 60 * 1000);
+    readUsersFromDatabase(function(users)
+    {
+        startupText(users, delay);
+        run(users);
+        setInterval(runWithUserFetch, delay * 60 * 1000);
+    });
 }
 
 function log(text, options, includeDate = true)
@@ -333,6 +377,10 @@ function log(text, options, includeDate = true)
     console.log(brightness + bg_color + fg_color + "%s" + "\x1b[0m", (includeDate ? date + " - " : "") + text);
 }
 
+/**
+ * Initializes the 'firebase-admin' module as described in the
+ * {@link https://firebase.google.com/docs/admin/setup#initialize_the_sdk Docs}
+ */
 function initializeFirebase()
 {
     //noinspection NpmUsedModulesInstalled
@@ -344,6 +392,13 @@ function initializeFirebase()
     });
 }
 
+/**
+ * Used to get an asset from two params that allow to uniquely (presumably, not certain) identify an asset
+ * @param assets - a list of assets return from the Steam API
+ * @param classid - a parameter present in both 'asset' and 'description'
+ * @param instanceid - a parameter present in both 'asset' and 'description'
+ * @returns {string}
+ */
 function getAssetId(assets, classid, instanceid)
 {
     for(let i = 0; i < assets.length; i++)
@@ -353,6 +408,12 @@ function getAssetId(assets, classid, instanceid)
     }
 }
 
+/**
+ * Loops through the descriptors to find one that describes a match,
+ * during which the Souvenir Package was dropped
+ * @param descriptors
+ * @returns {null|{tier: string, team1: string, team2: string}}
+ */
 function getMatchInfo(descriptors)
 {
     for(let i = 0; i < descriptors.length; i++)
@@ -360,6 +421,7 @@ function getMatchInfo(descriptors)
         const match = REGEX_MATCH.exec(descriptors[i].value);
         if(match !== null)
         {
+
             return {
                 tier: match[1],
                 team1: match[2],
