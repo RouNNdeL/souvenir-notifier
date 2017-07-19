@@ -79,18 +79,19 @@ function getItemPrice(name, callback)
     })
 }
 
-function run()
+function run(users)
 {
     log("Refreshing...", {bright: true});
 
     const data = readData();
-    const users = readUsers();
 
-    for(let i = 0; i < users.length; i++)
+    for(let k in users)
     {
-        const userId = users[i]["steam_id"];
-        const username = users[i]["username"];
-        const key = users[i]["key"];
+        if(!users.hasOwnProperty(k))
+            continue;
+        const userId = users[k]["steam_id"];
+        const username = users[k]["username"];
+        const keys = users[k]["keys"];
         const newUser = data[userId] === undefined;
 
         callSteamApi(userId, 5000, function(response)
@@ -118,16 +119,19 @@ function run()
                             const matchInfo = getMatchInfo(items[i].descriptions);
                             getItemPrice(marketName, function(price)
                             {
-                                sendFirebaseMessage(key, {
-                                    username: username,
-                                    price: price,
-                                    team1: matchInfo.team1,
-                                    team2: matchInfo.team2,
-                                    event: nameMatch[1],
-                                    year: nameMatch[2],
-                                    map: nameMatch[3],
-                                    url: "https://steamcommunity.com/profiles/" + userId + "/inventory#730_2_" + assetId
-                                });
+                                for(let j = 0; j < keys.length; j++)
+                                {
+                                    sendFirebaseMessage(keys[j], {
+                                        username: username,
+                                        price: price,
+                                        team1: matchInfo.team1,
+                                        team2: matchInfo.team2,
+                                        event: nameMatch[1],
+                                        year: nameMatch[2],
+                                        map: nameMatch[3],
+                                        url: "https://steamcommunity.com/profiles/" + userId + "/inventory#730_2_" + assetId
+                                    });
+                                }
                                 saveData(data);
                                 log(username + " just got a package from " + nameMatch[3] + " worth " +
                                     price.replace("€", " euros").replace("$", "dollars"), {
@@ -206,6 +210,40 @@ function readUsers()
     return users;
 }
 
+function readUsersFromDatabase(callback)
+{
+    const db = admin.database();
+    db.ref("users").once("value", function(data)
+    {
+        const val = data.val();
+        const users = {};
+        for(let k in val)
+        {
+            if(!val.hasOwnProperty(k))
+                continue;
+            let user = val[k];
+            let steamAccounts = user.steamAccounts;
+            for(let l in steamAccounts)
+            {
+                //noinspection JSUnfilteredForInLoop
+                if(!users.hasOwnProperty(l))
+                {
+                    //noinspection JSUnfilteredForInLoop
+                    users[l] = {
+                        username: steamAccounts[l],
+                        steam_id: l,
+                        keys: []
+                    }
+                }
+                //noinspection JSUnfilteredForInLoop
+                users[l].keys.push(user.token);
+            }
+        }
+
+        callback(users);
+    });
+}
+
 function ensureDirectoryExistence(filePath)
 {
     const dirname = path.dirname(filePath);
@@ -261,12 +299,20 @@ function startupText(delay)
     }
 }
 
+function runWithUserFetch()
+{
+    readUsersFromDatabase(function(users)
+    {
+        run(users);
+    });
+}
+
 function start(delay)
 {
     initializeFirebase();
     startupText(delay);
-    run();
-    setInterval(run, delay * 60 * 1000);
+    runWithUserFetch();
+    setInterval(runWithUserFetch, delay * 60 * 1000);
 }
 
 function log(text, options, includeDate = true)
