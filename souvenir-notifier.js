@@ -20,10 +20,12 @@ const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.
 function sendFirebaseMessage(key, data)
 {
     admin.messaging().sendToDevice(key, {data: data})
-        .then(function(response) {
+        .then(function(response)
+        {
             //console.log("Successfully sent message:", response);
         })
-        .catch(function(error) {
+        .catch(function(error)
+        {
             console.log("Error sending message:", error);
         });
 }
@@ -99,6 +101,7 @@ function run()
             if(savedItems === undefined || savedItems === null)
                 savedItems = {};
             data[userId] = {};
+            saveData(data);
             for(let i = 0; i < items.length; i++)
             {
                 const name = items[i].name;
@@ -123,9 +126,9 @@ function run()
                                     event: nameMatch[1],
                                     year: nameMatch[2],
                                     map: nameMatch[3],
-                                    url: "https://steamcommunity.com/profiles/"+userId+"/inventory#730_2_"+assetId
+                                    url: "https://steamcommunity.com/profiles/" + userId + "/inventory#730_2_" + assetId
                                 });
-                                saveData(JSON.stringify(data));
+                                saveData(data);
                                 log(username + " just got a package from " + nameMatch[3] + " worth " +
                                     price.replace("€", " euros").replace("$", "dollars"), {
                                     fg_color: "\x1b[32m",
@@ -135,7 +138,7 @@ function run()
                         }
                         else
                         {
-                            saveData(JSON.stringify(data));
+                            saveData(data);
                             log(username + " already had a " +
                                 nameMatch[1] + " " + nameMatch[2] + " " + nameMatch[3] + ", not notifying",
                                 {
@@ -168,7 +171,10 @@ function readData()
 
 function saveData(data)
 {
-    fs.writeFileSync(SAVE_FILE, data, "utf-8");
+    if(typeof data === "string")
+        fs.writeFileSync(SAVE_FILE, data, "utf-8");
+    else
+        fs.writeFileSync(SAVE_FILE, JSON.stringify(data), "utf-8");
 }
 
 function readUsers()
@@ -185,12 +191,12 @@ function readUsers()
             //noinspection EqualityComparisonWithCoercionJS
             if(content.length !== 3 || parseInt(content[1]) != content[1])
             {
-                log("Error in config.cfg on line "+(i+1),
-                {
-                    bright: true,
+                log("Error in config.cfg on line " + (i + 1),
+                    {
+                        bright: true,
                         fg_color: "\x1b[37m",
-                    bg_color: "\x1b[41m"
-                });
+                        bg_color: "\x1b[41m"
+                    });
                 process.exit(1);
             }
             users.push({steam_id: content[1], key: content[2], username: content[0]});
@@ -241,12 +247,15 @@ function startupText(delay)
         if(data[users[i].steam_id] !== undefined)
         {
             let count = Object.keys(data[users[i].steam_id]).length;
-            log(users[i].username + " already has " + count + " Souvenir Package" + (count === 1 ? "s" : ""),
-                {
-                    bright: true,
-                    fg_color: "\x1b[37m",
-                    bg_color: "\x1b[46m"
-                });
+            if(count > 0)
+            {
+                log(users[i].username + " already has " + count + " Souvenir Package" + (count === 1 ? "s" : ""),
+                    {
+                        bright: true,
+                        fg_color: "\x1b[37m",
+                        bg_color: "\x1b[46m"
+                    });
+            }
 
         }
     }
