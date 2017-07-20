@@ -16,6 +16,8 @@ const FIREBASE_FILE = "serviceAccountKey.json";
 const REGEX_NAME = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.*?),/;
 
+let mUsers;
+
 /**
  * Sends a FirebaseMessage to a single client
  * @param key - the registration token that comes from the client FCM SDKs.
@@ -24,14 +26,14 @@ const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.
 function sendFirebaseMessage(key, data)
 {
     admin.messaging().sendToDevice(key, {data: data})
-        .then(function(response)
-        {
-            //console.log("Successfully sent message:", response);
-        })
-        .catch(function(error)
-        {
-            console.log("Error sending message:", error);
-        });
+         .then(function(response)
+         {
+             //console.log("Successfully sent message:", response);
+         })
+         .catch(function(error)
+         {
+             console.log("Error sending message:", error);
+         });
 }
 
 /**
@@ -129,13 +131,21 @@ function run(users)
 
         fetchInventory(userId, 5000, function(response)
         {
+            if(response === null)
+            {
+                log("Warning: Failed to fetch inventory for "+username+", it might be set to private", {
+                    fg_color: "\x1b[33m",
+                    bright: true
+                });
+                return;
+            }
             let items = response.descriptions;
             let assets = response.assets;
             let savedItems = data[userId];
             if(savedItems === undefined || savedItems === null)
-                savedItems = {};
-            data[userId] = {};
-            saveData(data);
+                savedItems = [];
+            data[userId] = [];
+            let anyItems = false;
             for(let i = 0; i < items.length; i++)
             {
                 const name = items[i].name;
@@ -144,8 +154,9 @@ function run(users)
                 const nameMatch = REGEX_NAME.exec(name);
                 if(nameMatch !== null)
                 {
-                    data[userId][assetId] = name;
-                    if(!savedItems.hasOwnProperty(assetId))
+                    anyItems = true;
+                    data[userId].push(assetId);
+                    if(savedItems.indexOf(assetId) === -1)
                     {
                         if(!newUser)
                         {
@@ -186,6 +197,10 @@ function run(users)
                         }
                     }
                 }
+            }
+            if(!anyItems)
+            {
+                saveData(data);
             }
         });
     }
@@ -284,61 +299,34 @@ function ensureDirectoryExistence(filePath)
 /**
  * Prints the startup text to the console
  * @param users - required to properly print the text
- * @param delay - required to properly print the text
+ * @param logOptions - options to pass to {@link log log()} function
  */
-function startupText(users, delay)
+function startupText(users, logOptions)
 {
-    const users = readUsers();
-
+    const data = readData();
     let usersText = "[ ";
-    for(let i = 0; i < users.length; i++)
+    let keys = Object.keys(users);
+    for(let i = 0; i < keys.length; i++)
     {
         if(i !== 0)
             usersText += ", ";
-        usersText += users[i].username;
+        usersText += users[keys[i]].username;
     }
     usersText += " ]";
-    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes",
-        {
-            bright: true,
-            fg_color: "\x1b[37m",
-            bg_color: "\x1b[46m"
-        });
-    log("Configured users are " + usersText,
-        {
-            bright: true,
-            fg_color: "\x1b[37m",
-            bg_color: "\x1b[46m"
-        });
-    for(let i = 0; i < users.length; i++)
+    log("Fetched users from Database " + usersText, logOptions);
+    for(let i = 0; i < keys.length; i++)
     {
-        if(data[users[i].steam_id] !== undefined)
+        if(data[keys[i]] !== undefined)
         {
-            let count = Object.keys(data[users[i].steam_id]).length;
+            let count = Object.keys(data[keys[i]]).length;
             if(count > 0)
             {
-                log(users[i].username + " already has " + count + " Souvenir Package" + (count === 1 ? "s" : ""),
-                    {
-                        bright: true,
-                        fg_color: "\x1b[37m",
-                        bg_color: "\x1b[46m"
-                    });
+                log(users[keys[i]].username + " already has " + count +
+                    " Souvenir Package" + (count === 1 ? "s" : ""), logOptions);
             }
 
         }
     }
-}
-
-/**
- * Asynchronously calls {@link run run()} after fetching <code>users</code> from the Database
- * @see readUsersFromDatabase readUsersFromDatabase()
- */
-function runWithUserFetch()
-{
-    readUsersFromDatabase(function(users)
-    {
-        run(users);
-    });
 }
 
 /**
@@ -350,12 +338,21 @@ function runWithUserFetch()
  */
 function start(delay)
 {
+    let options = {
+        bright: true,
+        fg_color: "\x1b[37m",
+        bg_color: "\x1b[46m"
+    };
+    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes", options);
     initializeFirebase();
+    log("Successfully initialized Firebase", options);
+
     readUsersFromDatabase(function(users)
     {
-        startupText(users, delay);
+        mUsers = users;
+        startupText(users, options);
         run(users);
-        setInterval(runWithUserFetch, delay * 60 * 1000);
+        setInterval(function() {run(mUsers);}, delay * 60 * 1000);
     });
 }
 
