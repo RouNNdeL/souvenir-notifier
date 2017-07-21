@@ -19,6 +19,7 @@ const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.
 let mUsers;
 let mInterval;
 let mRestart = false;
+let mVerbose = false;
 
 console.reset = function()
 {
@@ -35,7 +36,7 @@ function sendFirebaseMessage(key, data)
     admin.messaging().sendToDevice(key, {data: data})
          .then(function(response)
          {
-             //console.log("Successfully sent message:", response);
+             verbose("Successfully sent message:", response);
          })
          .catch(function(error)
          {
@@ -142,7 +143,7 @@ function run(users)
         const keys = users[k]["keys"];
         const newUser = data[userId] === undefined;
 
-        fetchInventory(userId, 5000, function(response)
+        fetchInventory(userId, 1000, function(response)
         {
             if(response === null)
             {
@@ -159,6 +160,8 @@ function run(users)
                 savedItems = [];
             data[userId] = [];
             let anyItems = false;
+            verbose("Total inventory count for "+username+": "+response.total_inventory_count);
+            let souvenirs = 0;
             for(let i = 0; i < items.length; i++)
             {
                 const name = items[i].name;
@@ -167,6 +170,7 @@ function run(users)
                 const nameMatch = REGEX_NAME.exec(name);
                 if(nameMatch !== null)
                 {
+                    souvenirs++;
                     anyItems = true;
                     data[userId].push(assetId);
                     if(savedItems.indexOf(assetId) === -1)
@@ -215,6 +219,7 @@ function run(users)
             {
                 saveData(data);
             }
+            verbose("Souvenir Package count for "+username+": "+souvenirs);
         });
     }
 }
@@ -232,6 +237,7 @@ function readData()
     }
     catch(e)
     {
+        verbose("File "+SAVE_FILE+" doesn't exist, creating it");
         ensureDirectoryExistence(SAVE_FILE);
         fs.writeFileSync(SAVE_FILE, "{}", "utf-8");
         return {};
@@ -245,6 +251,7 @@ function readData()
  */
 function saveData(data)
 {
+    verbose("Saving data for "+Object.keys(data).length+" steam account(s)");
     if(typeof data === "string")
         fs.writeFileSync(SAVE_FILE, data, "utf-8");
     else
@@ -288,6 +295,10 @@ function readUsersFromDatabase(callback)
                 users[l].keys.push(user.token);
             }
         }
+
+
+        verbose("Loaded "+Object.keys(val).length+" app user(s)");
+        verbose("Loaded "+Object.keys(users).length+" Steam account(s)");
 
         callback(users);
     });
@@ -396,6 +407,15 @@ function log(text, options, includeDate = true)
     console.log(brightness + bg_color + fg_color + "%s" + "\x1b[0m", (includeDate ? date + " - " : "") + text);
 }
 
+function verbose(text)
+{
+    if(mVerbose)
+    {
+        const date = dateFormat(new Date(), "yyyy-mm-dd HH:MM:ss");
+        console.log(date + " - V: " + text);
+    }
+}
+
 /**
  * Initializes the 'firebase-admin' module as described in the
  * {@link https://firebase.google.com/docs/admin/setup#initialize_the_sdk Docs}
@@ -489,6 +509,10 @@ function restart()
     }
 }
 
+if(argv.verbose === true || argv.v === true)
+{
+    mVerbose = true;
+}
 if(argv.delay !== undefined)
 {
     start(argv.delay);
