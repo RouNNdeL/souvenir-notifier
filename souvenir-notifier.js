@@ -16,6 +16,27 @@ const FIREBASE_FILE = "serviceAccountKey.json";
 const REGEX_NAME = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.*?),/;
 
+const LOG_ERROR = {
+    bright: true,
+    fg_color: "\x1b[37m",
+    bg_color: "\x1b[41m"
+};
+
+const LOG_WARNING = {
+    fg_color: "\x1b[33m",
+    bright: true
+};
+
+const LOG_HIGHLIGHT = {
+    bright: true,
+    fg_color: "\x1b[37m",
+    bg_color: "\x1b[46m"
+};
+
+const LOG_INFO = {
+    bright: true
+};
+
 let mUsers;
 let mInterval;
 let mRestart = false;
@@ -40,7 +61,7 @@ function sendFirebaseMessage(key, data)
          })
          .catch(function(error)
          {
-             console.log("Error sending message:", error);
+             log("Error sending message:" + JSON.stringify(error), LOG_ERROR);
          });
 }
 
@@ -70,11 +91,7 @@ function fetchInventory(userId, count, callback)
         }
         catch(e)
         {
-            log("Error: " + body, {
-                bright: true,
-                fg_color: "\x1b[37m",
-                bg_color: "\x1b[41m"
-            })
+            log("Error: " + body, LOG_ERROR)
         }
     });
 }
@@ -104,10 +121,12 @@ function getItemPrice(name, callback)
         const json = JSON.parse(body);
         if(json.success)
         {
+            verbose("Got price for " + name + ": " + json.lowest_price);
             callback(json.lowest_price);
         }
         else
         {
+            log("Error getting price for " + name + ": " + response, LOG_ERROR);
             callback("0");
         }
     })
@@ -127,10 +146,10 @@ function run(users)
     if(mRestart)
     {
         restart();
-
         return;
     }
-    log("Refreshing...", {bright: true});
+
+    log("Refreshing...", LOG_INFO);
 
     const data = readData();
 
@@ -147,10 +166,7 @@ function run(users)
         {
             if(response === null)
             {
-                log("Warning: Failed to fetch inventory for " + username + ", it might be set to private", {
-                    fg_color: "\x1b[33m",
-                    bright: true
-                });
+                log("Warning: Failed to fetch inventory for " + username + ", it might be set to private", LOG_WARNING);
                 return;
             }
             let items = response.descriptions;
@@ -160,7 +176,7 @@ function run(users)
                 savedItems = [];
             data[userId] = [];
             let anyItems = false;
-            verbose("Total inventory count for "+username+": "+response.total_inventory_count);
+            verbose("Total inventory count for " + username + ": " + response.total_inventory_count);
             let souvenirs = 0;
             for(let i = 0; i < items.length; i++)
             {
@@ -206,10 +222,7 @@ function run(users)
                             saveData(data);
                             log(username + " already had a " +
                                 nameMatch[1] + " " + nameMatch[2] + " " + nameMatch[3] + ", not notifying",
-                                {
-                                    fg_color: "\x1b[33m",
-                                    bright: true
-                                }
+                                LOG_WARNING
                             );
                         }
                     }
@@ -219,7 +232,7 @@ function run(users)
             {
                 saveData(data);
             }
-            verbose("Souvenir Package count for "+username+": "+souvenirs);
+            verbose("Souvenir Package count for " + username + ": " + souvenirs);
         });
     }
 }
@@ -237,7 +250,7 @@ function readData()
     }
     catch(e)
     {
-        verbose("File "+SAVE_FILE+" doesn't exist, creating it");
+        verbose("File " + SAVE_FILE + " doesn't exist, creating it");
         ensureDirectoryExistence(SAVE_FILE);
         fs.writeFileSync(SAVE_FILE, "{}", "utf-8");
         return {};
@@ -251,7 +264,7 @@ function readData()
  */
 function saveData(data)
 {
-    verbose("Saving data for "+Object.keys(data).length+" steam account(s)");
+    verbose("Saving data for " + Object.keys(data).length + " steam account(s)");
     if(typeof data === "string")
         fs.writeFileSync(SAVE_FILE, data, "utf-8");
     else
@@ -297,8 +310,8 @@ function readUsersFromDatabase(callback)
         }
 
 
-        verbose("Loaded "+Object.keys(val).length+" app user(s)");
-        verbose("Loaded "+Object.keys(users).length+" Steam account(s)");
+        verbose("Loaded " + Object.keys(val).length + " app user(s)");
+        verbose("Loaded " + Object.keys(users).length + " Steam account(s)");
 
         callback(users);
     });
@@ -323,9 +336,8 @@ function ensureDirectoryExistence(filePath)
 /**
  * Prints the startup text to the console
  * @param users - required to properly print the text
- * @param logOptions - options to pass to {@link log log()} function
  */
-function startupText(users, logOptions)
+function startupText(users)
 {
     const data = readData();
     let usersText = "[ ";
@@ -337,7 +349,7 @@ function startupText(users, logOptions)
         usersText += users[keys[i]].username;
     }
     usersText += " ]";
-    log("Fetched users from Database " + usersText, logOptions);
+    log("Fetched users from Database " + usersText, LOG_HIGHLIGHT);
     for(let i = 0; i < keys.length; i++)
     {
         if(data[keys[i]] !== undefined)
@@ -346,7 +358,7 @@ function startupText(users, logOptions)
             if(count > 0)
             {
                 log(users[keys[i]].username + " already has " + count +
-                    " Souvenir Package" + (count === 1 ? "s" : ""), logOptions);
+                    " Souvenir Package" + (count === 1 ? "s" : ""), LOG_HIGHLIGHT);
             }
 
         }
@@ -364,22 +376,17 @@ function startupText(users, logOptions)
 function start(delay, first_run = true)
 {
     console.reset();
-    let options = {
-        bright: true,
-        fg_color: "\x1b[37m",
-        bg_color: "\x1b[46m"
-    };
-    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes", options);
+    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes", LOG_HIGHLIGHT);
     if(first_run)
     {
         initializeFirebase();
     }
-    log("Successfully initialized Firebase", options);
+    log("Successfully initialized Firebase", LOG_HIGHLIGHT);
 
     readUsersFromDatabase(function(users)
     {
         mUsers = users;
-        startupText(users, options);
+        startupText(users);
         run(users);
         mInterval = setInterval(function() {run(mUsers);}, delay * 60 * 1000);
         if(first_run)
@@ -442,12 +449,7 @@ function registerOnUpdateListener()
     db.ref("users").on("child_changed", function()
     {
         mRestart = true;
-        let options = {
-            bright: true,
-            fg_color: "\x1b[37m",
-            bg_color: "\x1b[46m"
-        };
-        log("Database updated, restarting on next refresh...", options);
+        log("Database updated, restarting on next refresh...", LOG_INFO);
     })
 }
 
