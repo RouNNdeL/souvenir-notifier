@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const dateFormat = require('dateformat');
 const admin = require("firebase-admin");
+const diff = require("deep-object-diff").detailedDiff;
 
 const STEAM_INVENTORY_API_URL = "https://steamcommunity.com/inventory/$user_id$/730/2";
 const STEAM_PRICE_API_URL = "https://steamcommunity.com/market/priceoverview";
@@ -38,6 +39,7 @@ const LOG_INFO = {
 };
 
 let mUsers;
+let mDbData;
 let mInterval;
 let mRestart = false;
 let mVerbose = false;
@@ -285,6 +287,7 @@ function readUsersFromDatabase(callback)
     db.ref("users").once("value", function(data)
     {
         const val = data.val();
+        mDbData = val;
         const users = {};
         for(let k in val)
         {
@@ -446,10 +449,14 @@ function registerOnUpdateListener()
 {
 
     const db = admin.database();
-    db.ref("users").on("child_changed", function()
+    db.ref().on("child_changed", function(data)
     {
         mRestart = true;
         log("Database updated, restarting on next refresh...", LOG_INFO);
+
+        let value = diff(mDbData, data.val());
+        mDbData = data.val();
+        verbose("Difference in Database:\n"+JSON.stringify(value, null, 4));
     })
 }
 
