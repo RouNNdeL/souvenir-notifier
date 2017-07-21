@@ -18,8 +18,10 @@ const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.
 
 let mUsers;
 let mInterval;
+let mRestart = false;
 
-console.reset = function () {
+console.reset = function()
+{
     return process.stdout.write('\x1bc');
 };
 
@@ -121,6 +123,12 @@ function getItemPrice(name, callback)
  */
 function run(users)
 {
+    if(mRestart)
+    {
+        restart();
+
+        return;
+    }
     log("Refreshing...", {bright: true});
 
     const data = readData();
@@ -138,7 +146,7 @@ function run(users)
         {
             if(response === null)
             {
-                log("Warning: Failed to fetch inventory for "+username+", it might be set to private", {
+                log("Warning: Failed to fetch inventory for " + username + ", it might be set to private", {
                     fg_color: "\x1b[33m",
                     bright: true
                 });
@@ -413,7 +421,13 @@ function registerOnUpdateListener()
     const db = admin.database();
     db.ref("users").on("child_changed", function()
     {
-        restart();
+        mRestart = true;
+        let options = {
+            bright: true,
+            fg_color: "\x1b[37m",
+            bg_color: "\x1b[46m"
+        };
+        log("Database updated, restarting on next refresh...", options);
     })
 }
 
@@ -459,28 +473,20 @@ function getMatchInfo(descriptors)
 }
 
 /**
- * Restarts the app after 2.5s, clearing the run() interval
+ * Restarts the app, clearing the run() interval
  */
 function restart()
 {
-    let options = {
-        bright: true,
-        fg_color: "\x1b[37m",
-        bg_color: "\x1b[46m"
-    };
-    log("Database updated, restarting...", options);
-    setTimeout(function()
+    mRestart = false;
+    clearInterval(mInterval);
+    if(argv.delay !== undefined)
     {
-        clearInterval(mInterval);
-        if(argv.delay !== undefined)
-        {
-            start(argv.delay, false);
-        }
-        else
-        {
-            start(5, false);
-        }
-    }, 2500);
+        start(argv.delay, false);
+    }
+    else
+    {
+        start(5, false);
+    }
 }
 
 if(argv.delay !== undefined)
