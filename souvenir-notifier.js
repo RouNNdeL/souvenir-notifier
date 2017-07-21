@@ -38,11 +38,14 @@ const LOG_INFO = {
     bright: true
 };
 
+
+const mDelay = argv.delay !== undefined ? argv.delay : argv.d !== undefined ? argv.d : 5;
 let mUsers;
 let mDbData;
-let mInterval;
+let mInterval = -1;
 let mRestart = false;
-let mVerbose = false;
+let mVerbose;
+let mRemoteControl;
 
 console.reset = function()
 {
@@ -284,7 +287,7 @@ function saveData(data)
 function readUsersFromDatabase(callback)
 {
     const db = admin.database();
-    db.ref("users").once("value", function(data)
+    db.ref("data").child("users").once("value", function(data)
     {
         const val = data.val();
         mDbData = val;
@@ -370,20 +373,15 @@ function startupText(users)
 
 /**
  * Main function of the script, initializes an interval that fires every n seconds
- * @param delay - delay in minutes for the interval
- * @param first_run - if <coed>true</code> the Firebase App and listeners are going to be initialized
  * @see run
  * @see readUsersFromDatabase
  * @see startupText
  */
-function start(delay, first_run = true)
+function start()
 {
     console.reset();
-    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes", LOG_HIGHLIGHT);
-    if(first_run)
-    {
-        initializeFirebase();
-    }
+    verbose("Arguments:\n"+JSON.stringify(argv, null, 4));
+    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + mDelay + " minutes", LOG_HIGHLIGHT);
     log("Successfully initialized Firebase", LOG_HIGHLIGHT);
 
     readUsersFromDatabase(function(users)
@@ -391,11 +389,8 @@ function start(delay, first_run = true)
         mUsers = users;
         startupText(users);
         run(users);
-        mInterval = setInterval(function() {run(mUsers);}, delay * 60 * 1000);
-        if(first_run)
-        {
-            registerOnUpdateListener();
-        }
+        mInterval = setInterval(function() {run(mUsers);}, mDelay * 60 * 1000);
+        updateServerState();
     });
 }
 
@@ -449,7 +444,7 @@ function registerOnUpdateListener()
 {
 
     const db = admin.database();
-    db.ref().on("child_changed", function(data)
+    db.ref("data").on("child_changed", function(data)
     {
         mRestart = true;
         log("Database updated, restarting on next refresh...", LOG_INFO);
@@ -457,7 +452,38 @@ function registerOnUpdateListener()
         let value = diff(mDbData, data.val());
         mDbData = data.val();
         verbose("Difference in Database:\n"+JSON.stringify(value, null, 4));
-    })
+    });
+}
+
+function registerOnServerStateListener()
+{
+    const db = admin.database();
+    db.ref("config").on("child_changed", function(data)
+    {
+        verbose("Config change detected: { "+data.key+": "+data.val()+" }");
+        if(data.key === "server_running")
+        {
+            if(mInterval === -1 && data.val() === true)
+            {
+                verbose("Starting server as requested by remote control");
+                start();
+            }
+            else if(mInterval !== -1 && data.val() === false)
+            {
+                verbose("Stopping server as requested by remote control");
+                console.reset();
+                log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
+                stop();
+            }
+        }
+    });
+}
+
+function updateServerState()
+{
+    const db = admin.database();
+    db.ref("config").child("server_running").set(mInterval !== -1);
+    db.ref("config").child("server_online").set(true);
 }
 
 /**
@@ -507,26 +533,38 @@ function getMatchInfo(descriptors)
 function restart()
 {
     mRestart = false;
-    clearInterval(mInterval);
-    if(argv.delay !== undefined)
-    {
-        start(argv.delay, false);
-    }
-    else
-    {
-        start(5, false);
-    }
+    stop();
+    start();
 }
 
-if(argv.verbose === true || argv.v === true)
+function stop()
 {
-    mVerbose = true;
+    clearInterval(mInterval);
+    mInterval = -1;
+    updateServerState();
 }
-if(argv.delay !== undefined)
+
+mVerbose = argv.verbose === true || argv.v === true;
+mRemoteControl = argv.remoteControl === true || argv.r === true;
+
+initializeFirebase();
+registerOnUpdateListener();
+updateServerState();
+start();
+if(mRemoteControl)
 {
-    start(argv.delay);
+    verbose("Remote control enabled");
+    registerOnServerStateListener();
 }
-else
+
+process.on('SIGINT', function()
 {
-    start(5);
-}
+    const db = admin.database();
+    db.ref("config").off("child_changed");
+    db.ref("data").off("child_changed");
+    db.ref("config").child("server_running").set(false);
+    db.ref("config").child("server_online").set(false, function()
+    {
+        process.exit();
+    });
+});
