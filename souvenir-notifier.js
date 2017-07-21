@@ -17,6 +17,11 @@ const REGEX_NAME = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.*?),/;
 
 let mUsers;
+let mInterval;
+
+console.reset = function () {
+    return process.stdout.write('\x1bc');
+};
 
 /**
  * Sends a FirebaseMessage to a single client
@@ -330,21 +335,26 @@ function startupText(users, logOptions)
 }
 
 /**
- * Main function of the script, initializes an interval tha fires every n seconds
+ * Main function of the script, initializes an interval that fires every n seconds
  * @param delay - delay in minutes for the interval
+ * @param first_run - if <coed>true</code> the Firebase App and listeners are going to be initialized
  * @see run
  * @see readUsersFromDatabase
  * @see startupText
  */
-function start(delay)
+function start(delay, first_run = true)
 {
+    console.reset();
     let options = {
         bright: true,
         fg_color: "\x1b[37m",
         bg_color: "\x1b[46m"
     };
     log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + delay + " minutes", options);
-    initializeFirebase();
+    if(first_run)
+    {
+        initializeFirebase();
+    }
     log("Successfully initialized Firebase", options);
 
     readUsersFromDatabase(function(users)
@@ -352,7 +362,11 @@ function start(delay)
         mUsers = users;
         startupText(users, options);
         run(users);
-        setInterval(function() {run(mUsers);}, delay * 60 * 1000);
+        mInterval = setInterval(function() {run(mUsers);}, delay * 60 * 1000);
+        if(first_run)
+        {
+            registerOnUpdateListener();
+        }
     });
 }
 
@@ -387,6 +401,20 @@ function initializeFirebase()
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://souvenirnotifier.firebaseio.com"
     });
+}
+
+/**
+ * Registers a listener that will restart the app if any changes take place
+ * in <code>users</code> Database reference
+ */
+function registerOnUpdateListener()
+{
+
+    const db = admin.database();
+    db.ref("users").on("child_changed", function()
+    {
+        restart();
+    })
 }
 
 /**
@@ -428,6 +456,31 @@ function getMatchInfo(descriptors)
     }
 
     return null;
+}
+
+/**
+ * Restarts the app after 2.5s, clearing the run() interval
+ */
+function restart()
+{
+    let options = {
+        bright: true,
+        fg_color: "\x1b[37m",
+        bg_color: "\x1b[46m"
+    };
+    log("Database updated, restarting...", options);
+    setTimeout(function()
+    {
+        clearInterval(mInterval);
+        if(argv.delay !== undefined)
+        {
+            start(argv.delay, false);
+        }
+        else
+        {
+            start(5, false);
+        }
+    }, 2500);
 }
 
 if(argv.delay !== undefined)
