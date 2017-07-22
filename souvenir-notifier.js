@@ -371,29 +371,6 @@ function startupText(users)
     }
 }
 
-/**
- * Main function of the script, initializes an interval that fires every n seconds
- * @see run
- * @see readUsersFromDatabase
- * @see startupText
- */
-function start()
-{
-    console.reset();
-    verbose("Arguments:\n" + JSON.stringify(argv, null, 4));
-    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + mDelay + " minutes", LOG_HIGHLIGHT);
-    log("Successfully initialized Firebase", LOG_HIGHLIGHT);
-
-    readUsersFromDatabase(function(users)
-    {
-        mUsers = users;
-        startupText(users);
-        run(users);
-        mInterval = setInterval(function() {run(mUsers);}, mDelay * 60 * 1000);
-        updateServerState();
-    });
-}
-
 function log(text, options, includeDate = true)
 {
     let brightness;
@@ -531,6 +508,46 @@ function getMatchInfo(descriptors)
     return null;
 }
 
+function checkInternetConnection(callback)
+{
+    request({
+        url: "https://gstatic.com/generate_204"
+    }, (err, response, body) => {
+        if(err !== null && response === undefined)
+        {
+            log("Error: The server requires an active internet connection", LOG_ERROR);
+            process.exit();
+        }
+        else
+        {
+            callback();
+        }
+    });
+}
+
+/**
+ * Main function of the script, initializes an interval that fires every n seconds
+ * @see run
+ * @see readUsersFromDatabase
+ * @see startupText
+ */
+function start()
+{
+    console.reset();
+    verbose("Arguments:\n" + JSON.stringify(argv, null, 4));
+    log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + mDelay + " minutes", LOG_HIGHLIGHT);
+    log("Successfully initialized Firebase", LOG_HIGHLIGHT);
+
+    readUsersFromDatabase(function(users)
+    {
+        mUsers = users;
+        startupText(users);
+        run(users);
+        mInterval = setInterval(function() {checkInternetConnection(run.bind(mUsers));}, mDelay * 60 * 1000);
+        updateServerState();
+    });
+}
+
 /**
  * Restarts the app, clearing the run() interval
  */
@@ -548,38 +565,44 @@ function stop()
     updateServerState();
 }
 
-mVerbose = argv.verbose === true || argv.v === true;
-mRemoteControl = argv.remoteControl === true || argv.r === true;
+function init()
+{
+    mVerbose = argv.verbose === true || argv.v === true;
+    mRemoteControl = argv.remoteControl === true || argv.r === true;
 
-initializeFirebase();
-registerOnUpdateListener();
-updateServerState();
-if(argv.idle !== true && !mRemoteControl)
-{
-    start();
-}
-else
-{
-    log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
-}
+    initializeFirebase();
+    registerOnUpdateListener();
+    updateServerState();
 
-if(mRemoteControl)
-{
-    verbose("Remote control enabled");
-    registerOnServerStateListener();
-}
-
-process.on('SIGINT', function()
-{
-    log("Shutting down server", LOG_HIGHLIGHT);
-    setTimeout(function() {process.exit()}, 10000);
-    const db = admin.database();
-    db.ref("config").off();
-    db.ref("data").off();
-    db.ref("config").child("server_running").set(false);
-    db.ref("config").child("server_remote_control_enabled").set(null);
-    db.ref("config").child("server_online").set(false, function()
+    if(argv.idle !== true && !mRemoteControl)
     {
-        process.exit();
+        start();
+    }
+    else
+    {
+        log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
+    }
+
+    if(mRemoteControl)
+    {
+        verbose("Remote control enabled");
+        registerOnServerStateListener();
+    }
+
+    process.on('SIGINT', function()
+    {
+        log("Shutting down server", LOG_HIGHLIGHT);
+        setTimeout(function() {process.exit()}, 10000);
+        const db = admin.database();
+        db.ref("config").off();
+        db.ref("data").off();
+        db.ref("config").child("server_running").set(false);
+        db.ref("config").child("server_remote_control_enabled").set(null);
+        db.ref("config").child("server_online").set(false, function()
+        {
+            process.exit();
+        });
     });
-});
+}
+
+checkInternetConnection(init);
