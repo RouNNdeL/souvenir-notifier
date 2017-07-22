@@ -458,6 +458,7 @@ function registerOnUpdateListener()
 function registerOnServerStateListener()
 {
     const db = admin.database();
+    db.ref("config").child("server_remote_control_enabled").set(true);
     let callback = function(data)
     {
         verbose("Config change detected: { " + data.key + ": " + data.val() + " }");
@@ -479,7 +480,6 @@ function registerOnServerStateListener()
             db.ref("config").child("server_trigger").set(null);
         }
     };
-    db.ref("config").on("child_changed", callback);
     db.ref("config").on("child_added", callback);
 }
 
@@ -571,10 +571,13 @@ if(mRemoteControl)
 
 process.on('SIGINT', function()
 {
+    log("Shutting down server", LOG_HIGHLIGHT);
+    setTimeout(function() {process.exit()}, 10000);
     const db = admin.database();
     db.ref("config").off();
     db.ref("data").off();
     db.ref("config").child("server_running").set(false);
+    db.ref("config").child("server_remote_control_enabled").set(null);
     db.ref("config").child("server_online").set(false, function()
     {
         process.exit();
