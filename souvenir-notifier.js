@@ -47,10 +47,7 @@ let mRestart = false;
 let mVerbose;
 let mRemoteControl;
 
-console.reset = function()
-{
-    return process.stdout.write('\x1bc');
-};
+console.reset = () => process.stdout.write('\x1bc');
 
 /**
  * Sends a FirebaseMessage to a single client
@@ -60,11 +57,11 @@ console.reset = function()
 function sendFirebaseMessage(key, data)
 {
     admin.messaging().sendToDevice(key, {data: data})
-         .then(function(response)
+         .then(response =>
          {
              verbose("Successfully sent message:", response);
          })
-         .catch(function(error)
+         .catch(error =>
          {
              log("Error sending message:" + JSON.stringify(error), LOG_ERROR);
          });
@@ -167,7 +164,7 @@ function run(users)
         const keys = users[k]["keys"];
         const newUser = data[userId] === undefined;
 
-        fetchInventory(userId, 1000, function(response)
+        fetchInventory(userId, 1000, response =>
         {
             if(response === null)
             {
@@ -199,7 +196,7 @@ function run(users)
                         if(!newUser)
                         {
                             const matchInfo = getMatchInfo(items[i].descriptions);
-                            getItemPrice(marketName, function(price)
+                            getItemPrice(marketName, price =>
                             {
                                 for(let j = 0; j < keys.length; j++)
                                 {
@@ -287,7 +284,7 @@ function saveData(data)
 function readUsersFromDatabase(callback)
 {
     const db = admin.database();
-    db.ref("data").child("users").once("value", function(data)
+    db.ref("data").child("users").once("value", data =>
     {
         const val = data.val();
         mDbData = val;
@@ -421,7 +418,7 @@ function registerOnUpdateListener()
 {
 
     const db = admin.database();
-    db.ref("data").on("child_changed", function(data)
+    db.ref("data").on("child_changed", data =>
     {
         mRestart = true;
         log("Database updated, restarting on next refresh...", LOG_INFO);
@@ -436,26 +433,26 @@ function registerOnServerStateListener()
 {
     const db = admin.database();
     db.ref("config").child("server_remote_control_enabled").set(true);
-    let callback = function(data)
+    let callback = data =>
     {
         verbose("Config change detected: { " + data.key + ": " + data.val() + " }");
         if(data.key === "server_trigger")
-        if(data.key === "server_trigger")
-        {
-            if(mInterval === -1 && data.val() === true)
+            if(data.key === "server_trigger")
             {
-                verbose("Starting server as requested by remote control");
-                start();
+                if(mInterval === -1 && data.val() === true)
+                {
+                    verbose("Starting server as requested by remote control");
+                    start();
+                }
+                else if(mInterval !== -1 && data.val() === false)
+                {
+                    verbose("Stopping server as requested by remote control");
+                    console.reset();
+                    log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
+                    stop();
+                }
+                db.ref("config").child("server_trigger").set(null);
             }
-            else if(mInterval !== -1 && data.val() === false)
-            {
-                verbose("Stopping server as requested by remote control");
-                console.reset();
-                log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
-                stop();
-            }
-            db.ref("config").child("server_trigger").set(null);
-        }
     };
     db.ref("config").on("child_added", callback);
 }
@@ -510,10 +507,13 @@ function getMatchInfo(descriptors)
 
 function checkInternetConnection(callback)
 {
+    //noinspection JSUnusedLocalSymbols
     request({
         url: "https://gstatic.com/generate_204"
-    }, (err, response, body) => {
-        if(err !== null && response === undefined)
+    }, (err, response, body) =>
+    {
+        if((err !== null && response === undefined) ||
+            (response !== undefined && response !== null && response.code !== 204))
         {
             log("Error: The server requires an active internet connection", LOG_ERROR);
             process.exit();
@@ -538,12 +538,12 @@ function start()
     log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + mDelay + " minutes", LOG_HIGHLIGHT);
     log("Successfully initialized Firebase", LOG_HIGHLIGHT);
 
-    readUsersFromDatabase(function(users)
+    readUsersFromDatabase(users =>
     {
         mUsers = users;
         startupText(users);
         run(users);
-        mInterval = setInterval(function() {checkInternetConnection(run.bind(mUsers));}, mDelay * 60 * 1000);
+        mInterval = setInterval(() => {checkInternetConnection(run.bind(mUsers));}, mDelay * 60 * 1000);
         updateServerState();
     });
 }
@@ -589,19 +589,16 @@ function init()
         registerOnServerStateListener();
     }
 
-    process.on('SIGINT', function()
+    process.on('SIGINT', () =>
     {
         log("Shutting down server", LOG_HIGHLIGHT);
-        setTimeout(function() {process.exit()}, 10000);
+        setTimeout(() => {process.exit()}, 10000);
         const db = admin.database();
         db.ref("config").off();
         db.ref("data").off();
         db.ref("config").child("server_running").set(false);
         db.ref("config").child("server_remote_control_enabled").set(null);
-        db.ref("config").child("server_online").set(false, function()
-        {
-            process.exit();
-        });
+        db.ref("config").child("server_online").set(false, () => {process.exit();});
     });
 }
 
