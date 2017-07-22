@@ -380,7 +380,7 @@ function startupText(users)
 function start()
 {
     console.reset();
-    verbose("Arguments:\n"+JSON.stringify(argv, null, 4));
+    verbose("Arguments:\n" + JSON.stringify(argv, null, 4));
     log("Starting souvenir-notifier by RouNdeL, refresh time is set to " + mDelay + " minutes", LOG_HIGHLIGHT);
     log("Successfully initialized Firebase", LOG_HIGHLIGHT);
 
@@ -451,17 +451,18 @@ function registerOnUpdateListener()
 
         let value = diff(mDbData, data.val());
         mDbData = data.val();
-        verbose("Difference in Database:\n"+JSON.stringify(value, null, 4));
+        verbose("Difference in Database:\n" + JSON.stringify(value, null, 4));
     });
 }
 
 function registerOnServerStateListener()
 {
     const db = admin.database();
-    db.ref("config").on("child_changed", function(data)
+    let callback = function(data)
     {
-        verbose("Config change detected: { "+data.key+": "+data.val()+" }");
-        if(data.key === "server_running")
+        verbose("Config change detected: { " + data.key + ": " + data.val() + " }");
+        if(data.key === "server_trigger")
+        if(data.key === "server_trigger")
         {
             if(mInterval === -1 && data.val() === true)
             {
@@ -475,8 +476,11 @@ function registerOnServerStateListener()
                 log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
                 stop();
             }
+            db.ref("config").child("server_trigger").set(null);
         }
-    });
+    };
+    db.ref("config").on("child_changed", callback);
+    db.ref("config").on("child_added", callback);
 }
 
 function updateServerState()
@@ -550,7 +554,15 @@ mRemoteControl = argv.remoteControl === true || argv.r === true;
 initializeFirebase();
 registerOnUpdateListener();
 updateServerState();
-start();
+if(argv.idle !== true && !mRemoteControl)
+{
+    start();
+}
+else
+{
+    log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
+}
+
 if(mRemoteControl)
 {
     verbose("Remote control enabled");
@@ -560,8 +572,8 @@ if(mRemoteControl)
 process.on('SIGINT', function()
 {
     const db = admin.database();
-    db.ref("config").off("child_changed");
-    db.ref("data").off("child_changed");
+    db.ref("config").off();
+    db.ref("data").off();
     db.ref("config").child("server_running").set(false);
     db.ref("config").child("server_online").set(false, function()
     {
