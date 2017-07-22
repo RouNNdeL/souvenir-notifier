@@ -513,7 +513,7 @@ function checkInternetConnection(callback)
     }, (err, response, body) =>
     {
         if((err !== null && response === undefined) ||
-            (response !== undefined && response !== null && response.code !== 204))
+            (response !== undefined && response !== null && response.statusCode !== 204))
         {
             log("Error: The server requires an active internet connection", LOG_ERROR);
             process.exit();
