@@ -1,0 +1,27 @@
+{
+  "rules": {
+    "data": {
+      "users":{
+        "$user_id": {
+          // grants write access to the owner of this user account
+          // whose uid must exactly match the key ($user_id)
+          ".write": "$user_id === auth.uid",
+          ".read": "$user_id === auth.uid"
+        }
+      }
+    },
+    "config":
+    {
+      "server_online": {
+        ".read": "auth.uid === root.child('config').child('admin_acc').val()",
+        ".write": "false"
+      },
+      "server_running": {
+        ".read": "auth.uid === root.child('config').child('admin_acc').val()",
+        ".write": "false"
+      },
+      ".read": "auth.uid === root.child('config').child('admin_acc').val()",
+      ".write": "auth.uid === root.child('config').child('admin_acc').val()"
+    }
+  }
+}

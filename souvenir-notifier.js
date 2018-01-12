@@ -1,4 +1,6 @@
-﻿"use strict";
+﻿#!/usr/bin/env nodejs
+
+"use strict";
 
 const request = require("request");
 const argv = require('yargs').argv;
@@ -11,8 +13,8 @@ const diff = require("deep-object-diff").detailedDiff;
 const STEAM_INVENTORY_API_URL = "https://steamcommunity.com/inventory/$user_id$/730/2";
 const STEAM_PRICE_API_URL = "https://steamcommunity.com/market/priceoverview";
 
-const SAVE_FILE = "files/data.json";
-const FIREBASE_FILE = "serviceAccountKey.json";
+const SAVE_FILE = __dirname+"/files/data.json";
+const FIREBASE_FILE = __dirname+"/serviceAccountKey.json";
 
 const REGEX_NAME = /(.*?) (\d{4}) (.*?) Souvenir Package$/;
 const REGEX_MATCH = /^It was dropped during the (.*?) match between (.*?) and (.*?),/;
@@ -574,14 +576,7 @@ function init()
     registerOnUpdateListener();
     updateServerState();
 
-    if(argv.idle !== true && !mRemoteControl)
-    {
-        start();
-    }
-    else
-    {
-        log("Server is now in idle mode, waiting to receive a startup command", LOG_HIGHLIGHT);
-    }
+    start();
 
     if(mRemoteControl)
     {
